@@ -1,0 +1,26 @@
+{
+  "name": "truthlens",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Deepfake-proof camera and photo provenance platform (cryptography + blockchain)",
+  "scripts": {
+    "setup": "npm install --prefix blockchain && npm install --prefix web",
+    "chain": "npm --prefix blockchain run node",
+    "deploy:local": "npm --prefix blockchain run deploy:local",
+    "smoke:local": "npm --prefix blockchain run smoke:local",
+    "test:contracts": "npm --prefix blockchain test",
+    "dev": "npm --prefix web run dev",
+    "test:web": "npm --prefix web test",
+    "test": "npm run test:contracts && npm run test:web",
+    "phash:report": "npm --prefix web run phash:report --",
+    "e2e": "npm --prefix web run e2e",
+    "diff:report": "npm --prefix web run diff:report",
+    "dev:https": "npm --prefix web run dev:https",
+    "ui:check": "npm --prefix web run ui:check --",
+    "clean": "npm --prefix web run clean",
+    "seed": "npm --prefix web run seed",
+    "gas": "npm --prefix blockchain run gas",
+    "build": "npm --prefix web run build",
+    "start": "npm --prefix web run start"
+  }
+}

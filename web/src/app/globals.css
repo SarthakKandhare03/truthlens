@@ -1,0 +1,473 @@
+@import "tailwindcss";
+
+/*
+ * TruthLens design system: "Night Shift"
+ * --------------------------------------
+ * A detective's evidence board: condensed headline type, typewriter text,
+ * caution tape, polaroids pinned up and joined with red string, rubber stamps.
+ * Two themes:
+ *   Night shift  warm near-black board, cream ink, caution yellow  (data-theme="dark", the default)
+ *   Day shift    manila case-file paper, black ink, ballpoint blue (data-theme="light")
+ *
+ * Every colour below is a CSS variable that switches with the theme, so
+ * components never hard-code light or dark. Roles:
+ *   signal   the interactive accent (links, focus, live data)
+ *   hot      the headline highlight ("A WITNESS.")
+ *   alarm    evidence red: the primary button, pins, red string, stamps
+ *   tape     caution yellow; the same in both themes and only ever used as a
+ *            background (tape, the Capture button), so it is always readable
+ * Verdicts keep their meaning: green = authentic, orange = edited, red = unverified.
+ */
+
+/* `dark:` utilities follow the data-theme attribute, not just the OS setting. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-paper: var(--paper);       /* page background */
+  --color-sheet: var(--sheet);       /* raised surfaces: cards, inputs */
+  --color-ink: var(--ink);           /* text and strong lines */
+  --color-muted: var(--muted);       /* secondary text */
+  --color-rule: var(--rule);         /* hairlines */
+  --color-signal: var(--signal);     /* the accent: links, focus, live data */
+  --color-signal-ink: var(--signal-ink); /* text on top of signal */
+  --color-hot: var(--hot);           /* headline highlight */
+  --color-alarm: var(--alarm);       /* evidence red */
+  --color-alarm-ink: var(--alarm-ink);
+  --color-tape: var(--tape);         /* caution yellow (backgrounds only) */
+  --color-tape-ink: var(--tape-ink);
+  --color-authentic: var(--authentic);
+  --color-edited: var(--edited);
+  --color-fake: var(--fake);
+
+  --font-display: var(--font-anton), "Impact", "Arial Narrow", sans-serif;
+  --font-sans: var(--font-courier), "Courier New", ui-monospace, monospace;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  /* Ransom-note hero + masthead */
+  --font-abril: var(--nf-abril), Georgia, serif;
+  --font-bungee: var(--nf-bungee), Impact, sans-serif;
+  --font-elite: var(--nf-elite), "Courier New", monospace;
+  --font-spacemono: var(--nf-space-mono), ui-monospace, monospace;
+}
+
+:root,
+[data-theme="dark"] {
+  --paper: #13110e;
+  --sheet: #1d1a15;
+  --ink: #ece3cf;
+  --muted: #b0a68e;
+  --rule: rgb(236 227 207 / 0.15);
+  --signal: #ffd60a;
+  --signal-ink: #13110e;
+  --hot: #ffd60a;
+  --alarm: #d9182f;
+  --alarm-ink: #fff4e6;
+  --authentic: #4cc38a;
+  --edited: #ff9f43;
+  --fake: #ff4d5e;
+  --dot: rgb(236 227 207 / 0.07);    /* the dotted board texture */
+  --glow: rgb(255 190 70 / 0.08);    /* warm desk-lamp glow behind the evidence */
+  --grain-opacity: 0.1;
+  --grain-blend: screen;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --paper: #ece2cb;
+  --sheet: #f6efdd;
+  --ink: #16130f;
+  --muted: #5a5040;
+  --rule: rgb(22 19 15 / 0.18);
+  --signal: #1d3fbb;
+  --signal-ink: #f6efdd;
+  --hot: #c8102e;
+  --alarm: #c8102e;
+  --alarm-ink: #fff4e6;
+  --authentic: #1d7a4c;
+  --edited: #b35a00;
+  --fake: #b3122a;
+  --dot: rgb(22 19 15 / 0.1);
+  --glow: rgb(255 214 10 / 0.16);
+  --grain-opacity: 0.3;
+  --grain-blend: multiply;
+  color-scheme: light;
+}
+
+/*
+ * Ransom-note palette, used only by the masthead and the landing hero.
+ *   Dark  = "Midnight Flash": near-black, red and blue glows, white halftone, camera flash
+ *   Light = "Riso Zine": cream paper, pink and blue misprinted halftone, yellow block
+ * --cut-N / --cut-N-ink are the cut-out letter backgrounds and the text colour
+ * that reads on each (picked per theme for contrast).
+ */
+[data-theme="dark"],
+:root {
+  --rn-base: #07070a;
+  --rn-ink: #f5f3ef;
+  --rn-red: #ff2d55;
+  --rn-blue: #3c5aff;
+  --rn-yellow: #ffd23f;
+  --rn-shadow: rgb(0 0 0 / 0.65);
+  --cut-1: #f5f3ef; --cut-1-ink: #111114;
+  --cut-2: #ff2d55; --cut-2-ink: #ffffff;
+  --cut-3: #ffd23f; --cut-3-ink: #111114;
+  --cut-4: #3c5aff; --cut-4-ink: #ffffff;
+  --cut-5: #1d1d24; --cut-5-ink: #f5f3ef;
+  --cut-6: #bfe3ff; --cut-6-ink: #111114;
+}
+[data-theme="light"] {
+  --rn-base: #fff3e6;
+  --rn-ink: #14120f;
+  --rn-red: #ff3d8b;
+  --rn-blue: #1b2a8f;
+  --rn-yellow: #ffd23f;
+  --rn-shadow: rgb(20 18 15 / 0.85);
+  --cut-1: #ffffff; --cut-1-ink: #14120f;
+  --cut-2: #ff3d8b; --cut-2-ink: #ffffff;
+  --cut-3: #ffd23f; --cut-3-ink: #14120f;
+  --cut-4: #1b2a8f; --cut-4-ink: #fff3e6;
+  --cut-5: #14120f; --cut-5-ink: #fff3e6;
+  --cut-6: #bfe3ff; --cut-6-ink: #14120f;
+}
+
+/* Fixed in both themes (only ever used as a background). */
+:root {
+  --tape: #ffd60a;
+  --tape-ink: #13110e;
+}
+
+html {
+  background: var(--paper);
+}
+
+body {
+  /* The board: a fine dot grid. */
+  background: radial-gradient(var(--dot) 1px, transparent 1.3px) 0 0 / 22px 22px, var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  overflow-x: clip; /* full-bleed tape is 100vw wide, which includes the scrollbar */
+}
+
+/*
+ * Display type: Anton, a tall condensed grotesque, always in capitals (like
+ * a headline slammed onto a front page). Anton has no italic, so <em> inside
+ * a headline is shown as the highlight colour instead of slanted.
+ * Unlayered on purpose, so it wins over utility classes.
+ */
+.font-display {
+  font-weight: 400; /* Anton only comes in one (very heavy) weight */
+  text-transform: uppercase;
+  letter-spacing: 0.005em;
+}
+.font-display em,
+em.font-display {
+  font-style: normal;
+  color: var(--hot);
+}
+
+::selection {
+  background: var(--signal);
+  color: var(--signal-ink);
+}
+
+/* Paper grain over everything (fixed, so it doesn't scroll like a texture). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: var(--grain-blend);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Film grain flicker: the grain jumps position a few times a second, like
+   projected film. steps() keeps it to 6 cheap repaints per cycle. */
+@keyframes grain-flicker {
+  0% { background-position: 0 0; }
+  20% { background-position: -40px 30px; }
+  40% { background-position: 60px -20px; }
+  60% { background-position: -20px -60px; }
+  80% { background-position: 30px 50px; }
+  100% { background-position: 0 0; }
+}
+body::before {
+  animation: grain-flicker 0.9s steps(1) infinite;
+}
+
+/* The custom crosshair cursor (components/cursor.tsx) adds this class only on
+   devices with a precise pointer and without reduced motion. Text fields keep
+   the system text cursor. */
+html.custom-cursor,
+html.custom-cursor * {
+  cursor: none !important;
+}
+html.custom-cursor input,
+html.custom-cursor textarea {
+  cursor: text !important;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Print details                                                              */
+/* ------------------------------------------------------------------------- */
+
+/* Faint 12-column grid, like a layout sheet. */
+@utility layout-grid {
+  background-image: linear-gradient(to right, var(--rule) 1px, transparent 1px);
+  background-size: calc(100% / 12) 100%;
+}
+
+/* Diagonal hatching, used for "changed" regions in the tamper heatmap. */
+@utility hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    currentColor 0 2px,
+    transparent 2px 7px
+  );
+}
+
+/* Rubber-stamp ink: knocks random specks out of the stamp so it looks printed. */
+@utility stamp-ink {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.2 1.75'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.2 1.75'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3C/svg%3E");
+}
+
+/* Receipt paper: a perforated (zig-zag) top edge. */
+@utility perforated {
+  -webkit-mask: radial-gradient(circle 5px at 8px 0, transparent 98%, #000) top left / 16px 100% repeat-x;
+  mask: radial-gradient(circle 5px at 8px 0, transparent 98%, #000) top left / 16px 100% repeat-x;
+}
+
+/* Caution-tape stripes: yellow and black at 45°, from a repeating gradient. */
+@utility hazard {
+  background-image: repeating-linear-gradient(-45deg, var(--tape) 0 22px, var(--tape-ink) 22px 44px);
+}
+/* The stripes crawl sideways. One stripe period measured horizontally is
+   44px × √2 ≈ 62.23px, so moving by exactly that loops seamlessly. */
+@keyframes hazard-crawl {
+  to { background-position: 62.2254px 0; }
+}
+.animate-hazard {
+  animation: hazard-crawl 1.8s linear infinite;
+}
+
+/* Red string being drawn from pin to pin and pulled back a little, over and
+   over (paths use pathLength="1", so 1 = the whole string). It never fully
+   disappears: it pulls back to 40% of its length at most. */
+@keyframes string-draw {
+  from { stroke-dashoffset: 0.6; }
+  to { stroke-dashoffset: 0; }
+}
+.string-draw {
+  stroke-dasharray: 1;
+  animation: string-draw 3s ease-in-out infinite alternate;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Ransom-note hero                                                           */
+/* ------------------------------------------------------------------------- */
+
+/* One cut-out letter: its rotation (--rot) is fixed per letter; the jiggle
+   lifts it and flips the tilt the other way, staggered across the headline. */
+@keyframes ransom-jiggle {
+  0%, 100% { transform: rotate(var(--rot)); }
+  50% { transform: translateY(-6px) rotate(calc(var(--rot) * -1)); }
+}
+.ransom-jiggle {
+  display: inline-block;
+  transform: rotate(var(--rot));
+  animation: ransom-jiggle 2.4s ease-in-out infinite;
+}
+.ransom-cut {
+  display: inline-block;
+  padding: 4px 9px;
+  line-height: 1;
+  box-shadow: 3px 3px 0 var(--rn-shadow);
+  transition: transform 0.15s ease;
+}
+.ransom-cut:hover {
+  transform: scale(1.18) rotate(0deg);
+}
+@media (max-width: 899px) {
+  .ransom-cut { padding: 3px 6px; }
+}
+
+/* Midnight Flash: a camera flash fires over the hero every ~5 s. Up in 50 ms,
+   gone in 150 ms. One flash per 5 s is far below the 3-per-second limit for
+   photosensitivity (WCAG 2.3.1), and it is off with reduced motion. */
+@keyframes camera-flash {
+  0%, 96% { opacity: 0; }
+  97% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+.camera-flash {
+  opacity: 0;
+  animation: camera-flash 5s linear 1.5s infinite;
+}
+
+/* Riso Zine: the blue halftone is printed slightly out of register and wobbles. */
+@keyframes riso-wobble {
+  0%, 100% { transform: translate(14px, 10px) rotate(0deg); }
+  50% { transform: translate(6px, 18px) rotate(1.5deg); }
+}
+.riso-wobble {
+  animation: riso-wobble 6s ease-in-out infinite;
+}
+
+/* The VERIFIED stamp thumps every 3 s. */
+@keyframes stamp-pulse {
+  0%, 22%, 100% { transform: scale(1); }
+  11% { transform: scale(1.18); }
+}
+.stamp-pulse {
+  animation: stamp-pulse 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ransom-jiggle, .camera-flash, .riso-wobble, .stamp-pulse, .string-draw {
+    animation: none !important;
+  }
+  .string-draw { stroke-dashoffset: 0; }
+  .camera-flash { opacity: 0; }
+}
+
+/* ------------------------------------------------------------------------- */
+/* Keyframe effects (CSS, so they run on the compositor)                      */
+/* ------------------------------------------------------------------------- */
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.4s steps(2, jump-none) infinite;
+}
+
+/* The live ticker on the landing page. */
+@keyframes marquee {
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee var(--marquee-duration, 60s) linear infinite;
+}
+
+/* Slow scan line across the camera viewfinder. */
+@keyframes hud-sweep {
+  0% { transform: translateY(-10%); opacity: 0; }
+  10%, 90% { opacity: 1; }
+  100% { transform: translateY(110vh); opacity: 0; }
+}
+.animate-hud-sweep {
+  animation: hud-sweep 5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* UNVERIFIED: a corrupted-signal glitch, horizontal bands shifting sideways. */
+@keyframes glitch-a {
+  0%, 100% { clip-path: inset(0 0 100% 0); transform: translateX(0); }
+  8% { clip-path: inset(12% 0 70% 0); transform: translateX(-14px); }
+  16% { clip-path: inset(55% 0 30% 0); transform: translateX(10px); }
+  24% { clip-path: inset(80% 0 6% 0); transform: translateX(-6px); }
+  32% { clip-path: inset(30% 0 52% 0); transform: translateX(16px); }
+  40% { clip-path: inset(0 0 100% 0); }
+  70% { clip-path: inset(66% 0 18% 0); transform: translateX(-18px); }
+  76% { clip-path: inset(0 0 100% 0); }
+}
+@keyframes glitch-b {
+  0%, 100% { clip-path: inset(100% 0 0 0); transform: translateX(0); }
+  12% { clip-path: inset(40% 0 44% 0); transform: translateX(12px); }
+  20% { clip-path: inset(8% 0 80% 0); transform: translateX(-10px); }
+  28% { clip-path: inset(72% 0 12% 0); transform: translateX(8px); }
+  36% { clip-path: inset(100% 0 0 0); }
+  60% { clip-path: inset(20% 0 66% 0); transform: translateX(-14px); }
+  66% { clip-path: inset(100% 0 0 0); }
+}
+.glitch-a { animation: glitch-a 2.6s steps(1, end) infinite; }
+.glitch-b { animation: glitch-b 2.6s steps(1, end) infinite 0.2s; }
+
+/* Marching dashed border for the drop zone. */
+@keyframes dash-march {
+  to { background-position: 24px 0, -24px 100%, 0 -24px, 100% 24px; }
+}
+.dropzone-border {
+  background-image:
+    linear-gradient(90deg, var(--ink) 50%, transparent 50%),
+    linear-gradient(90deg, var(--ink) 50%, transparent 50%),
+    linear-gradient(0deg, var(--ink) 50%, transparent 50%),
+    linear-gradient(0deg, var(--ink) 50%, transparent 50%);
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size: 12px 1px, 12px 1px, 1px 12px, 1px 12px;
+  background-position: 0 0, 0 100%, 0 0, 100% 0;
+  animation: dash-march 1.4s linear infinite;
+}
+
+/* Blinking cursor block for "typing" text. */
+@keyframes caret {
+  50% { opacity: 0; }
+}
+.animate-caret {
+  animation: caret 1s steps(1) infinite;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Theme switch: a circular wipe from the toggle button (View Transitions).   */
+/* --wipe-x / --wipe-y are set by the toggle just before switching.           */
+/* ------------------------------------------------------------------------- */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: theme-wipe 0.7s cubic-bezier(0.65, 0, 0.35, 1);
+}
+@keyframes theme-wipe {
+  from { clip-path: circle(0 at var(--wipe-x, 100%) var(--wipe-y, 0)); }
+  to { clip-path: circle(150vmax at var(--wipe-x, 100%) var(--wipe-y, 0)); }
+}
+
+/*
+ * Shutter page transition (app/(site)/template.tsx): two black blades cover the
+ * screen and snap apart like a camera shutter on every page load/navigation.
+ * Pure CSS, so it plays even before JavaScript loads and can never leave the
+ * page covered; "both" keeps the blades closed during the delay and open after.
+ * With reduced motion the global rule below shortens it to an instant open.
+ */
+@keyframes shutter-up {
+  from { transform: translateY(0); }
+  to { transform: translateY(-101%); }
+}
+@keyframes shutter-down {
+  from { transform: translateY(0); }
+  to { transform: translateY(101%); }
+}
+.shutter-top {
+  animation: shutter-up 0.85s cubic-bezier(0.76, 0, 0.24, 1) 0.12s both;
+}
+.shutter-bottom {
+  animation: shutter-down 0.85s cubic-bezier(0.76, 0, 0.24, 1) 0.12s both;
+}
+
+/* Thin scrollbars (on every scrolling element, page and panels). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+
+/*
+ * Accessibility: with "reduce motion", no looping effects and near-instant
+ * transitions. Framer Motion follows the same setting through
+ * <MotionConfig reducedMotion="user"> in components/providers.tsx.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
