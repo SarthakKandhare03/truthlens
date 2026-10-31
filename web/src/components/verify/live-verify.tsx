@@ -110,7 +110,6 @@ export function LiveVerify() {
         <div
           className="relative overflow-hidden border-2 border-ink bg-black"
           style={{ aspectRatio: `${res.width} / ${res.height}` }}
-          data-cursor="hide"
         >
           <video
             ref={videoRef}
