@@ -5,16 +5,16 @@
 // sent; the frame itself never leaves the device.
 //
 //   1. copy the guide area of the video into a small canvas (FRAME_W wide)
-//   2. for each rotation in ROTATIONS, draw it rotated about the centre and
-//      read the pixels once
+//   2. for each warp in WARPS (a small tilt, or the slant of a photo filmed
+//      at an angle), draw it un-warped about the centre and read the pixels once
 //   3. for both photo shapes in ASPECTS and every crop in SEARCH_GRID,
 //      box-average the crop to a 64-px thumbnail and hash it (computePHash,
 //      the same function the server uses)
 //
-// 270 hashes take a few milliseconds: the thumbnails are tiny, and the costly
-// part (reading pixels back from the GPU) happens only 3 times per frame.
+// 450 hashes take a few milliseconds: the thumbnails are tiny, and the costly
+// part (reading pixels back from the GPU) happens only 5 times per frame.
 import { computePHash } from "@/lib/crypto/phash";
-import { ASPECTS, boxThumb, cropRect, frameLight, ROTATIONS, SEARCH_GRID } from "@/lib/live-match";
+import { ASPECTS, boxThumb, cropRect, frameLight, SEARCH_GRID, WARPS, warpKey } from "@/lib/live-match";
 
 export type Shape = "landscape" | "portrait";
 
@@ -56,22 +56,23 @@ export class FrameHasher {
     bctx.imageSmoothingQuality = "high";
     bctx.drawImage(video, g.x, g.y, g.w, g.h, 0, 0, w, h);
 
-    const byRotation = new Map<number, ImageData>();
-    for (const rot of ROTATIONS) {
+    const byWarp = new Map<string, ImageData>();
+    for (const warp of WARPS) {
       tctx.fillStyle = "#181818";
       tctx.fillRect(0, 0, w, h);
       tctx.save();
       tctx.translate(w / 2, h / 2);
-      tctx.rotate((-rot * Math.PI) / 180); // undo a tilt of `rot` degrees
+      tctx.rotate((-warp.rot * Math.PI) / 180); // undo a tilt of `rot` degrees
+      tctx.transform(1, 0, -warp.shear, 1, 0, 0); // undo a slant x' = x + shear·y
       tctx.drawImage(this.base, -w / 2, -h / 2);
       tctx.restore();
-      byRotation.set(rot, tctx.getImageData(0, 0, w, h));
+      byWarp.set(warpKey(warp), tctx.getImageData(0, 0, w, h));
     }
 
-    const upright = byRotation.get(0)!;
+    const upright = byWarp.get(warpKey({ rot: 0, shear: 0 }))!;
     const { mean, contrast } = frameLight(upright);
     const hashes = ASPECTS[shape].flatMap((aspect) =>
-      SEARCH_GRID.map((c) => computePHash(boxThumb(byRotation.get(c.rot)!, cropRect(c, w, h, aspect)))),
+      SEARCH_GRID.map((c) => computePHash(boxThumb(byWarp.get(warpKey(c.warp))!, cropRect(c, w, h, aspect)))),
     );
     return { hashes, mean, contrast };
   }

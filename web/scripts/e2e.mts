@@ -126,6 +126,25 @@ if (v3.verdict === "EDITED") printHeatmap(v3.diff.grid, v3.diff.gridSize);
 const v4 = (await post("/api/verify", { image: new Uint8Array(await makeScene(seed + 7)) })).body as VerifyResponse;
 check("unrelated photo → UNVERIFIED (NO_RECORD)", v4.verdict === "UNVERIFIED" && v4.reason === "NO_RECORD", v4.verdict === "UNVERIFIED" ? `nearest pHash distance ${v4.nearestDistance}` : v4.verdict);
 
+// Cropped and mirrored copies are traced back to the original, and the crop is located.
+const { width: pw = 1600, height: ph = 1200 } = await sharp(Buffer.from(photo)).metadata();
+const croppedCopy = new Uint8Array(
+  await sharp(Buffer.from(photo)).extract({ left: Math.round(pw * 0.15), top: Math.round(ph * 0.15), width: Math.round(pw * 0.7), height: Math.round(ph * 0.7) }).jpeg({ quality: 88 }).toBuffer(),
+);
+const v6 = (await post("/api/verify", { image: croppedCopy })).body as VerifyResponse;
+check(
+  "cropped copy (15% off each side) → EDITED, linked to its original, crop located",
+  v6.verdict === "EDITED" && v6.original.sha256 === sha256 && !!v6.diff.geometry?.cropped,
+  v6.verdict === "EDITED" ? `kept ${v6.diff.geometry?.keptPercent}% of the original, ${v6.diff.changedPercent}% changed` : v6.verdict,
+);
+const mirroredCopy = new Uint8Array(await sharp(Buffer.from(photo)).flop().jpeg({ quality: 88 }).toBuffer());
+const v7 = (await post("/api/verify", { image: mirroredCopy })).body as VerifyResponse;
+check(
+  "mirrored copy → EDITED, linked to its original",
+  v7.verdict === "EDITED" && v7.original.sha256 === sha256 && !!v7.diff.geometry?.mirrored,
+  v7.verdict === "EDITED" ? `${v7.diff.changedPercent}% changed after un-mirroring` : v7.verdict,
+);
+
 // --- 4. Provenance chain ------------------------------------------------------------
 console.log("\n4. Provenance");
 const editSha = await sha256Hex(edited);

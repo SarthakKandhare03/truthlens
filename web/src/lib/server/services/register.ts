@@ -25,6 +25,7 @@ import { explorerTxUrl, getChain, readRecord, recordEditOnChain, registerOnChain
 import { ServiceError } from "../errors";
 import type { Upload } from "../http";
 import { getIndex } from "../image-index";
+import { ensureVariants } from "../variants";
 import { storageKeys, writeStorage } from "../storage";
 import type { StoredProof } from "./stored-proof";
 
@@ -124,6 +125,9 @@ export async function registerCapture(input: RegisterInput): Promise<RegisterRes
   if (!record) throw new ServiceError(500, "REGISTRATION_NOT_FOUND", "Transaction mined but record not found");
   record.txHash = tx.txHash;
   getIndex().upsert(record);
+  // Precompute this photo's crop/mirror fingerprints in the background, so the
+  // first verification of an edited copy doesn't have to wait for them.
+  void ensureVariants().catch(() => undefined);
 
   const ms = (x: number) => Math.round(x);
   return {

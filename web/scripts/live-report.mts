@@ -14,13 +14,13 @@
 // because searching 135 crops gives an unrelated photo 135 chances.
 import sharp from "sharp";
 import { computePHash, hammingDistance } from "../src/lib/crypto/phash";
-import { ASPECTS, boxThumb, cropRect, LIVE_CLOSE, LIVE_MATCH, ROTATIONS, SEARCH_GRID } from "../src/lib/live-match";
+import { ASPECTS, boxThumb, cropRect, LIVE_CLOSE, LIVE_MATCH, SEARCH_GRID, WARPS, warpKey, type Warp } from "../src/lib/live-match";
 import { makeScene } from "../test/fixtures/scenes";
 
 const FRAME_W = 320; // the guide area, already downscaled like in the browser
 const FRAME_H = 240;
 
-type Scenario = { name: string; fill: number; ox: number; oy: number; tilt: number; rough: boolean };
+type Scenario = { name: string; fill: number; ox: number; oy: number; tilt: number; rough: boolean; shear?: number };
 const scenarios: Scenario[] = [
   { name: "fills 96% of the guide, centred", fill: 0.96, ox: 0, oy: 0, tilt: 0, rough: false },
   { name: "fills 85%, off-centre", fill: 0.85, ox: 0.04, oy: -0.03, tilt: 0, rough: false },
@@ -28,6 +28,8 @@ const scenarios: Scenario[] = [
   { name: "fills 88%, tilted 2°", fill: 0.88, ox: 0.02, oy: 0.02, tilt: 2, rough: false },
   { name: "realistic: 86%, off-centre, tilted, screen effects", fill: 0.86, ox: 0.03, oy: 0.02, tilt: 1.5, rough: true },
   { name: "realistic: 92%, tilted the other way, screen effects", fill: 0.92, ox: -0.02, oy: 0.03, tilt: -2, rough: true },
+  { name: "phone held at an angle (6% shear), effects", fill: 0.86, ox: 0.01, oy: 0.02, tilt: 1, rough: true, shear: 0.06 },
+  { name: "phone held at a steep angle (12% shear), effects", fill: 0.86, ox: 0.01, oy: 0.02, tilt: 1, rough: true, shear: 0.12 },
 ];
 
 /** A soft white glare blob over one corner, like a reflection on a screen. */
@@ -44,6 +46,7 @@ async function cameraFrame(photo: Buffer, s: Scenario): Promise<Buffer> {
   const ph = Math.round(FRAME_H * s.fill);
   // Keep the photo's own shape (4:3 or 16:9), as on a real screen.
   let placed = await sharp(photo).resize(pw, ph, { fit: "inside" }).toBuffer();
+  if (s.shear) placed = await sharp(placed).affine([[1, s.shear], [0, 1]], { background: "#181818" }).toBuffer();
   if (s.tilt) placed = await sharp(placed).rotate(s.tilt, { background: "#181818" }).toBuffer();
   const meta = await sharp(placed).metadata();
   const left = Math.round((FRAME_W - meta.width!) / 2 + s.ox * FRAME_W);
@@ -75,20 +78,22 @@ const raw = async (img: ReturnType<typeof sharp>): Promise<Raw> => {
 const thumb = (src: Raw, r: { x: number; y: number; w: number; h: number }) =>
   boxThumb({ width: src.w, height: src.h, data: src.data }, r);
 
-/** Rotates the frame about its centre, keeping its size (corners go dark), like the canvas. */
-async function rotated(frame: Buffer, deg: number): Promise<Raw> {
-  if (!deg) return raw(sharp(frame));
-  const r = await sharp(frame).rotate(-deg, { background: "#181818" }).toBuffer();
+/** Un-warps the frame about its centre, keeping its size (corners go dark), like the canvas. */
+async function rotated(frame: Buffer, deg: number, shear = 0): Promise<Raw> {
+  if (!deg && !shear) return raw(sharp(frame));
+  const r = deg
+    ? await sharp(frame).rotate(-deg, { background: "#181818" }).toBuffer()
+    : await sharp(frame).affine([[1, -shear], [0, 1]], { background: "#181818" }).toBuffer();
   const m = await sharp(r).metadata();
   return raw(sharp(r).extract({ left: Math.round((m.width! - FRAME_W) / 2), top: Math.round((m.height! - FRAME_H) / 2), width: FRAME_W, height: FRAME_H }));
 }
 
 /** All the hashes the app computes for one frame. */
 async function searchHashes(frame: Buffer): Promise<string[]> {
-  const byRot = new Map<number, Raw>();
-  for (const rot of ROTATIONS) byRot.set(rot, await rotated(frame, rot));
+  const byWarp = new Map<string, Raw>();
+  for (const w of WARPS as Warp[]) byWarp.set(warpKey(w), await rotated(frame, w.rot, w.shear));
   return ASPECTS.landscape.flatMap((aspect) =>
-    SEARCH_GRID.map((c) => computePHash(thumb(byRot.get(c.rot)!, cropRect(c, FRAME_W, FRAME_H, aspect)))),
+    SEARCH_GRID.map((c) => computePHash(thumb(byWarp.get(warpKey(c.warp))!, cropRect(c, FRAME_W, FRAME_H, aspect)))),
   );
 }
 

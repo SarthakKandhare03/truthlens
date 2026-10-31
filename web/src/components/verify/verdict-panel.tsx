@@ -212,11 +212,24 @@ export function VerdictPanel({
   }
 
   if (result.verdict === "EDITED") {
-    const subtitle = {
-      reencoded: "Same picture, re-encoded. No region differs from the original. It was recompressed or resized (e.g. sent over WhatsApp), so the file is no longer the signed original.",
-      adjusted: "A whole-image filter (brightness/contrast) was applied. No local region was changed.",
-      modified: "Regions of this image differ from the registered original. The hatched areas show where.",
-    }[result.editKind];
+    // A cropped / mirrored / rotated copy: say how it was reframed, then whether anything else changed.
+    const g = result.diff.geometry;
+    const reframed = g
+      ? [g.cropped && `cropped to ${g.keptPercent}% of the original`, g.mirrored && "mirrored", g.rotation && `rotated ${g.rotation}°`]
+          .filter(Boolean)
+          .join(", ")
+      : null;
+    const subtitle = reframed
+      ? {
+          reencoded: `Same picture, reframed: ${reframed}. Inside that frame no region differs from the original.`,
+          adjusted: `Same picture, reframed: ${reframed}, with a whole-image filter. No local region was changed.`,
+          modified: `Reframed (${reframed}), and regions differ from the original. The hatched areas show where.`,
+        }[result.editKind]
+      : {
+          reencoded: "Same picture, re-encoded. No region differs from the original. It was recompressed or resized (e.g. sent over WhatsApp), so the file is no longer the signed original.",
+          adjusted: "A whole-image filter (brightness/contrast) was applied. No local region was changed.",
+          modified: "Regions of this image differ from the registered original. The hatched areas show where.",
+        }[result.editKind];
     const pct = result.diff.changedPercent;
 
     return (
@@ -259,7 +272,14 @@ export function VerdictPanel({
           <div className="mt-3 flex flex-wrap gap-2 font-mono text-[11px] uppercase tracking-[0.12em]">
             <span className="border border-rule px-2 py-1 text-muted">{result.diff.changedCells}/256 regions changed</span>
             {result.diff.globalAdjustment && <span className="border border-edited px-2 py-1 text-edited">global filter detected</span>}
-            {result.diff.alignment === "approximate" && (
+            {result.diff.geometry?.cropped && (
+              <span className="border border-edited px-2 py-1 text-edited">cropped · kept {result.diff.geometry.keptPercent}% of the original</span>
+            )}
+            {result.diff.geometry?.mirrored && <span className="border border-edited px-2 py-1 text-edited">mirrored</span>}
+            {!!result.diff.geometry?.rotation && (
+              <span className="border border-edited px-2 py-1 text-edited">rotated {result.diff.geometry.rotation}°</span>
+            )}
+            {!result.diff.geometry && result.diff.alignment === "approximate" && (
               <span className="border border-edited px-2 py-1 text-edited">reframed / cropped: approximate</span>
             )}
           </div>
@@ -267,7 +287,7 @@ export function VerdictPanel({
 
         <div className="mt-6">
           <p className={`mb-2 ${label}`}>Compare with the original</p>
-          <CompareSlider original={result.originalUrl} suspect={suspectUrl} aspect={aspect} />
+          <CompareSlider original={result.originalUrl} suspect={suspectUrl} aspect={aspect} geometry={result.diff.geometry} />
         </div>
 
         <div className="mt-6">

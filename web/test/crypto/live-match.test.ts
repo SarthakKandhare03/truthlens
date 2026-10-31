@@ -46,8 +46,8 @@ describe("decide (sliding window of frames)", () => {
 });
 
 describe("alignment grid", () => {
-  it("has 135 crops, all inside the frame", () => {
-    expect(SEARCH_GRID).toHaveLength(135);
+  it("has 225 crops per photo shape, all inside the frame", () => {
+    expect(SEARCH_GRID).toHaveLength(225);
     for (const c of SEARCH_GRID) {
       const r = cropRect(c, 320, 240);
       expect(r.x).toBeGreaterThanOrEqual(0);

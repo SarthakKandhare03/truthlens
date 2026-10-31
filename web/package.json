@@ -12,6 +12,7 @@
     "phash:report": "tsx --conditions=react-server scripts/phash-report.mts",
     "diff:report": "tsx --conditions=react-server scripts/diff-report.mts",
     "live:report": "tsx --conditions=react-server scripts/live-report.mts",
+    "benchmark": "tsx --conditions=react-server scripts/benchmark.mts",
     "e2e": "tsx --conditions=react-server scripts/e2e.mts",
     "dev:https": "next dev --experimental-https -H 0.0.0.0",
     "icons": "tsx scripts/generate-icons.mts",

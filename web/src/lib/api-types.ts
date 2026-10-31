@@ -34,6 +34,18 @@ export type DiffSummary = {
   changedCells: number;
   globalAdjustment: boolean;
   alignment: "exact" | "resized" | "approximate";
+  /**
+   * Set when the copy is cropped, mirrored and/or rotated relative to the
+   * original: where it came from (rect, fractions of the original after
+   * rotation/mirroring) and how it was turned. null for a plain copy.
+   */
+  geometry?: {
+    rect: { x: number; y: number; w: number; h: number };
+    rotation: 0 | 90 | 180 | 270;
+    mirrored: boolean;
+    cropped: boolean;
+    keptPercent: number;
+  } | null;
 };
 
 export type VerifyResponse =

@@ -3,7 +3,7 @@
 // Live verify: point the camera at a photo (on a phone, a screen or paper)
 // and TruthLens looks for its sealed original on the ledger, in real time.
 //
-//   every ~250 ms   hash the guide area at 270 crops in the browser
+//   every ~250 ms   hash the guide area at 450 crops in the browser
 //                   (lib/client/frame-hash.ts) → POST the hashes to /api/match
 //   every frame     add the result to a sliding window; decide() locks a match
 //                   only when one sealed photo wins 3 of the last 6 frames
@@ -189,7 +189,7 @@ export function LiveVerify() {
             />
           )}
           <span className="ml-auto font-mono text-[11px] text-muted">
-            {paused ? "paused" : ms !== null ? `${ms} ms / frame · 270 crops · hashes only` : "warming up"}
+            {paused ? "paused" : ms !== null ? `${ms} ms / frame · 450 crops · hashes only` : "warming up"}
           </span>
         </div>
       </div>

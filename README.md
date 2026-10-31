@@ -9,9 +9,10 @@
   <a href="blockchain/contracts/TruthRegistry.sol"><img alt="Solidity" src="https://img.shields.io/badge/Solidity-smart%20contract-363636?style=for-the-badge&logo=solidity&logoColor=white"></a>
   <a href="#how-it-works"><img alt="Polygon Amoy" src="https://img.shields.io/badge/Polygon-Amoy%20ready-8247e5?style=for-the-badge&logo=polygon&logoColor=white"></a>
   <br>
-  <a href="#evidence-tests-and-measurements"><img alt="Tests" src="https://img.shields.io/badge/tests-22%20contract%20%2B%2071%20unit%20passing-1d7a4c?style=for-the-badge"></a>
-  <a href="#evidence-tests-and-measurements"><img alt="End to end" src="https://img.shields.io/badge/e2e-23%20checks%20%C2%B7%20attacks%20included-1d7a4c?style=for-the-badge"></a>
+  <a href="#evidence-tests-and-measurements"><img alt="Tests" src="https://img.shields.io/badge/tests-22%20contract%20%2B%2078%20unit%20passing-1d7a4c?style=for-the-badge"></a>
+  <a href="#evidence-tests-and-measurements"><img alt="End to end" src="https://img.shields.io/badge/e2e-25%20checks%20%C2%B7%20attacks%20included-1d7a4c?style=for-the-badge"></a>
   <a href="#live-camera-verify"><img alt="Live verify" src="https://img.shields.io/badge/live%20verify-0%25%20false%20matches-ff2d55?style=for-the-badge"></a>
+  <a href="#accuracy-benchmark"><img alt="Accuracy" src="https://img.shields.io/badge/accuracy-98%25%20%C2%B7%200%20wrong%20links-ffd23f?style=for-the-badge"></a>
 </p>
 
 <h3 align="center">Seal a photo the moment it's taken. Prove where any copy came from. Point a camera at a photo and check it <i>live</i>.</h3>
@@ -181,6 +182,14 @@ flowchart TD
   E -- none --> UNV2["❌ UNVERIFIED<br/>(no provenance record)"]
 ```
 
+**Cropped, mirrored and rotated copies** are traced too. For every sealed photo the server also keeps
+the fingerprints of its mirror image, its 90°/180°/270° rotations and 400 crops (off-chain, recomputed
+from the stored original). A cropped copy is shortlisted through those, then an **alignment search**
+finds exactly where in the original it came from, so the heatmap compares the right pixels and the
+before/after slider lines up. Three gates make sure a *wrong* photo is never linked: the aligned region
+must look the same at fine detail, cover at least 25% of the original, and still differ by ≤ 45%.
+Code: [`src/lib/image/derivative.ts`](web/src/lib/image/derivative.ts).
+
 The perceptual hash only *shortlists* candidates; the pixel comparison *decides*. Several sealed
 photos can look alike (e.g. a burst of the same scene), so the original that explains the image with
 the least change wins.
@@ -193,9 +202,9 @@ printout. A few times a second TruthLens looks for that photo's sealed original 
 
 ```mermaid
 flowchart LR
-  F["Camera frame<br/>(guide area)"] --> A["Alignment search<br/>2 shapes × 5 zooms × 9 shifts × 3 tilts<br/>= 270 crops"]
-  A --> H["270 perceptual hashes<br/>computed on the phone"]
-  H -- "only the hashes (~6 KB)" --> M["POST /api/match<br/>in-memory pHash index"]
+  F["Camera frame<br/>(guide area)"] --> A["Alignment search<br/>2 shapes × 5 zooms × 9 shifts × 5 warps<br/>= 450 crops"]
+  A --> H["450 perceptual hashes<br/>computed on the phone"]
+  H -- "only the hashes (~10 KB)" --> M["POST /api/match<br/>in-memory pHash index"]
   M --> W{"Same sealed photo wins<br/>3 of the last 6 frames<br/>within 11 bits?"}
   W -- yes --> S["SEALED ORIGINAL FOUND<br/>block, time, device, original"]
   W -- "6 frames, nothing close" --> N["NO SEALED ORIGINAL"]
@@ -203,11 +212,12 @@ flowchart LR
 
 - **Private by design:** the picture never leaves the device; the server only sees 64-bit fingerprints.
 - **Why an alignment search?** A re-photographed photo is never framed like the original: there's a
-  border, it's off-centre, the phone is tilted. A perceptual hash is very sensitive to framing (10–30
-  bits) but barely affected by blur, glare or noise (0–10 bits). So each frame is hashed at 270 crops
-  and the best-aligned one counts. That took a realistic re-capture from **0–25% matched to 88–100%**.
-- **Stricter threshold than file checks (11 bits, not 16):** 270 tries give an unrelated photo 270
-  chances to land close, so the threshold was re-measured: at 11 bits, **0 of 1,440** unrelated pairs
+  border, it's off-centre, the phone is tilted or held at an angle. A perceptual hash is very sensitive
+  to framing (10–30 bits) but barely affected by blur, glare or noise (0–10 bits). So each frame is hashed
+  at 450 crops (zooms, shifts, small tilts, and the slant of a photo filmed from the side) and the
+  best-aligned one counts. That took a realistic re-capture from **0–25% matched to 88–100%**.
+- **Stricter threshold than file checks (11 bits, not 16):** 450 tries give an unrelated photo 450
+  chances to land close, so the threshold was re-measured: at 11 bits, **0 of 1,920** unrelated pairs
   matched (see [Evidence](#live-camera-verify-11-of-64-bits)).
 - **Stable, not flickery:** one frame is noisy (autofocus, a moving hand), so a photo is only *locked*
   when it wins 3 of the last 6 frames.
@@ -398,11 +408,12 @@ All from the project root.
 | `npm run dev` / `npm run dev:https` | Web app in development (HTTPS variant for phones). |
 | `npm run build` then `npm run start` | Production build and server (recommended for the presentation). |
 | `npm run seed` | Register sample photos, including a two-level edit chain. |
-| `npm test` | Contract tests (22) + unit tests (71). |
-| `npm run e2e` | End-to-end check of the running system over HTTP (23 checks, attacks included). |
+| `npm test` | Contract tests (22) + unit tests (78). |
+| `npm run e2e` | End-to-end check of the running system over HTTP (25 checks, attacks included). |
 | `npm run ui:check` | Headless-browser walkthrough with a fake camera (`-- --mobile`, `-- --reduced-motion`). |
 | `npm run phash:report` | Perceptual-hash robustness table (`-- photo1.jpg photo2.jpg` for your own photos). |
 | `npm run diff:report` | Tamper-heatmap calibration table. |
+| `npm --prefix web run benchmark` | Accuracy benchmark: 22 kinds of copy per photo, old vs new pipeline, confusion matrix (`-- path/to/photos` for your own). |
 | `npm --prefix web run live:report` | Live camera verify calibration: simulated screen re-captures, alignment search, false-match rate. |
 | `npm run gas` | Contract tests with gas usage per function. |
 | `npm run smoke:local` | Write and read one record directly on the chain. |
@@ -415,8 +426,8 @@ All from the project root.
 | Suite | What it covers |
 |---|---|
 | **Contract tests** (22, Hardhat + Mocha) | Registration, duplicate rejection, lookups, pagination, edit chains (multi-level, branches, cycle prevention), relayer access control, ownership. |
-| **Unit tests** (71, Vitest) | SHA-256 against NIST vectors and OpenSSL; ECDSA non-extractability, tampering, domain separation, OpenSSL interoperability; pHash robustness and EXIF orientation; device key storage (reload, two-tab race); heatmap accuracy; storage path-traversal safety; the SQLite index; live verify (frame-window decisions, alignment grid, fast Hamming distance, in-memory index cache). |
-| **End-to-end** (`npm run e2e`) | Register; duplicate, forged-signature, tampered-in-transit and non-image uploads all rejected; AUTHENTIC / EDITED (re-encoded and modified, with heatmap) / UNVERIFIED; edit chains; live matching from hashes alone (and malformed hashes refused); thumbnails, feed, search, stats. |
+| **Unit tests** (78, Vitest) | SHA-256 against NIST vectors and OpenSSL; ECDSA non-extractability, tampering, domain separation, OpenSSL interoperability; pHash robustness and EXIF orientation; device key storage (reload, two-tab race); heatmap accuracy; storage path-traversal safety; the SQLite index; live verify (frame-window decisions, alignment grid, fast Hamming distance, in-memory index cache); cropped/mirrored/rotated copies (variant fingerprints, crop located, wrong photos refused, tiny fragments never linked). |
+| **End-to-end** (`npm run e2e`) | Register; duplicate, forged-signature, tampered-in-transit and non-image uploads all rejected; AUTHENTIC / EDITED (re-encoded and modified, with heatmap) / UNVERIFIED; edit chains; a cropped copy and a mirrored copy traced to their original; live matching from hashes alone (and malformed hashes refused); thumbnails, feed, search, stats. |
 | **UI walkthrough** (`npm run ui:check`) | The whole demo in a real browser on desktop, phone size and reduced motion; fails on any browser error; checks the camera is released when you leave the capture page; points a fake camera at the sealed photo on a "screen" (border, tilt, glare, noise) and expects **Sealed original found**, then at an unrelated photo and expects **No sealed original**. |
 
 ### Perceptual hash threshold: 16 of 64 bits
@@ -439,10 +450,45 @@ The match has two jobs: recognise re-shared copies **and** link an edited photo 
 the heatmap can be drawn. 16 covers every benign transformation and most realistic edits while
 staying 6+ bits below the closest unrelated pair.
 
+### Accuracy benchmark
+
+`npm --prefix web run benchmark` seals photos in memory, makes 22 kinds of copy of each, and runs every
+copy through the **old** pipeline (whole-image fingerprint + plain diff) and the **new** one (variant
+fingerprints + alignment). A result only counts as right if the verdict is right **and** it names the
+right original. Unrelated photos are tested leave-one-out. Results on 10 generated photos:
+
+| Kind of copy | Expected | Old | **New** |
+|---|---|---|---|
+| Exact copy | AUTHENTIC | 100% | **100%** |
+| Re-encoded, resized, WhatsApp-style, screenshot, brightness/contrast, grayscale | EDITED | 100% | **100%** |
+| Crop 5% / 10% / 20% per side | EDITED | 90% / 0% / 0% | **100% / 100% / 100%** |
+| Off-centre crop (keeps 49%) | EDITED | 0% | **100%** |
+| Square "Instagram" crop | EDITED | 20% | **90%** |
+| Mirrored · mirrored + cropped | EDITED | 0% · 0% | **100% · 100%** |
+| Rotated 90° · 180° | EDITED | 0% · 0% | **100% · 100%** |
+| Caption, pasted object (5%, 12%), erased region | EDITED | 100% | **100%** |
+| Crop 15% **and** a pasted object | EDITED | 0% | **70%** |
+| Unrelated photo (not sealed) | UNVERIFIED | 100% | **100%** |
+| **Overall (230 checks)** | | **61%** | **98%** |
+
+Confusion matrix (new pipeline; rows = truth, columns = verdict):
+
+| | AUTHENTIC | EDITED | UNVERIFIED |
+|---|---|---|---|
+| **AUTHENTIC** | 10 | 0 | 0 |
+| **EDITED** | 0 | **196** | 4 |
+| **UNVERIFIED** | 0 | **0** | 20 |
+
+**No unrelated photo was called EDITED, and every EDITED verdict named the correct original.** The 4
+misses all fail safe (UNVERIFIED). That's deliberate: the alignment gates were set below the closest
+*wrong* match measured, so a doubtful crop is given up rather than linked to the wrong photo. Tested
+copies were generated scenes; run it on your own photos with `-- path/to/photos`. Cost: verifying takes
+~0.9 s instead of ~0.3 s; fingerprinting a sealed photo ~0.3 s, done in the background after sealing.
+
 ### Live camera verify: 11 of 64 bits
 
 Measured with `npm --prefix web run live:report`: 16 sealed photos (8 at 4:3, 8 at 16:9) shown on a
-simulated screen and re-captured, with the alignment search (270 crops per frame):
+simulated screen and re-captured, with the alignment search (450 crops per frame):
 
 | Simulated re-capture | Plain hash, matched | With alignment search |
 |---|---|---|
@@ -450,15 +496,16 @@ simulated screen and re-captured, with the alignment search (270 crops per frame
 | Fills 85%, off-centre | 0% | 100% (2–6) |
 | Fills 75%, centred | 0% | 100% (2–8) |
 | Fills 88%, tilted 2° | 0% | 94% (4–12) |
-| Realistic: off-centre + tilt + blur + glare + dimming + sensor noise | 0% | 88–100% (2–12) |
-| **Unrelated photos** (1,440 frame/photo pairs) | | **0% matched** (closest: 12 bits) |
+| Realistic: off-centre + tilt + blur + glare + dimming + sensor noise | 0% | 94–100% (2–12) |
+| Phone held at an angle (6% shear) / steep angle (12%) | 0% / 0% | 100% / 88% |
+| **Unrelated photos** (1,920 frame/photo pairs) | | **0% matched** (closest: 12 bits) |
 
 | Threshold | True frames matched | False frames matched |
 |---|---|---|
 | 10 | 97% | 0% |
 | **11 (used)** | **97%** | **0%** |
 | 12 | 100% | 0% |
-| 16 (the file-check threshold) | 100% | 1% |
+| 16 (the file-check threshold) | 100% | 2% |
 
 A lock needs the same photo in 3 of the last 6 frames, so a 97% per-frame hit rate locks almost
 immediately, while a stray close frame from an unrelated photo can never lock on its own.
@@ -565,7 +612,7 @@ Cost = gas used × gas price. For example, at a gas price of 30 gwei one registr
 | Photographing a screen showing a deepfake ("analog hole") | — | **Not prevented.** Provenance proves *who sealed what, when*, not that the scene was real. Trusted camera hardware (e.g. C2PA cameras) narrows this. |
 | A compromised device signing fake content | Key can't be copied off the device. | Malware *on* the device can still use it. Hardware attestation (Android Key Attestation, iOS App Attest) is future work. |
 | AI-generated images | Shown as UNVERIFIED (no record). | No AI classifier, by design. |
-| Heavy crops, mirroring, hue-only edits | Documented measurements. | May show as UNVERIFIED or under-reported. Feature matching (ORB/SIFT) is future work. |
+| Cropped, mirrored, rotated copies | Variant fingerprints + alignment (98% in the benchmark, 0 wrong links). | Copies keeping < 25% of the original, and some crops combined with a big content edit, show as UNVERIFIED. Hue-only edits are under-reported (grayscale diff). |
 | Privacy | Only hashes on-chain. | Originals are publicly readable in this demo; the key fingerprint links photos from the same device. |
 | Centralised relayer | Can't alter past records; anyone can read and verify the chain independently. | The relayer decides what gets *written*. |
 

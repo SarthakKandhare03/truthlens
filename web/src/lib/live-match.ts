@@ -10,16 +10,17 @@
 //
 // Thresholds, measured with `npm run live:report`: simulated camera frames of
 // 16 sealed photos (8 at 4:3, 8 at 16:9) shown on a screen with a border,
-// off-centre, tilted, blurred, dimmed, with glare and sensor noise. 96 true
-// frames vs 1,440 frame/unrelated-photo pairs, with the alignment search:
+// off-centre, tilted, filmed at an angle (shear up to 12%), blurred, dimmed,
+// with glare and sensor noise. 128 true frames vs 1,920 frame/unrelated-photo
+// pairs, with the alignment search:
 //
 //   threshold   true frames matched   false frames matched
 //        10              97%                   0%
 //        11              97%                   0%     <- LIVE_MATCH
 //        12             100%                   0%
-//        16             100%                   1%
+//        16             100%                   2%
 //
-// The alignment search tries 270 crops, which gives an unrelated photo 270
+// The alignment search tries 450 crops, which gives an unrelated photo 450
 // chances to land close (the closest unrelated pair was 12 bits), so live
 // mode is STRICTER than file verification (16). One missed frame does not
 // matter: a lock needs 3 of the last 6 frames anyway.
@@ -36,27 +37,37 @@ export const NEED_HITS = 3;
  * like the original: there is a border, it is off-centre, the phone is tilted.
  * A perceptual hash is sensitive to exactly that (framing errors cost 10-20
  * bits, while blur, glare and noise cost 0-10). So every frame is hashed at a
- * grid of crops: zoom × horizontal shift × vertical shift × rotation, and the
- * best-aligned crop is the one compared. 5 × 3 × 3 × 3 = 135 crops per photo shape,
+ * grid of crops: zoom × horizontal shift × vertical shift × warp, and the
+ * best-aligned crop is the one compared. 5 × 3 × 3 × 5 = 225 crops per photo shape,
  * computed on 64-pixel thumbnails, a few milliseconds per frame.
  *
  *   scale  fraction of the guide area kept (1 = all of it)
  *   dx/dy  shift of the crop centre, as a fraction of the guide size
- *   rot    rotation in degrees applied before cropping (undoes a tilt)
+ *   warp   undoes a tilt (rotation, degrees) or the phone being held at an
+ *          angle (horizontal shear, the slant a photo takes when filmed from
+ *          the side), applied about the centre before cropping
  */
-export type Crop = { scale: number; dx: number; dy: number; rot: number };
+export type Warp = { rot: number; shear: number };
+export const WARPS: Warp[] = [
+  { rot: -2, shear: 0 },
+  { rot: 0, shear: 0 },
+  { rot: 2, shear: 0 },
+  { rot: 0, shear: -0.08 },
+  { rot: 0, shear: 0.08 },
+];
+export const warpKey = (w: Warp) => `${w.rot}/${w.shear}`;
+export type Crop = { scale: number; dx: number; dy: number; warp: Warp };
 export const SCALES = [1, 0.93, 0.86, 0.79, 0.72];
 export const SHIFTS = [-0.04, 0, 0.04];
-export const ROTATIONS = [-2, 0, 2];
 export const SEARCH_GRID: Crop[] = SCALES.flatMap((scale) =>
-  SHIFTS.flatMap((dx) => SHIFTS.flatMap((dy) => ROTATIONS.map((rot) => ({ scale, dx, dy, rot })))),
+  SHIFTS.flatMap((dx) => SHIFTS.flatMap((dy) => WARPS.map((warp) => ({ scale, dx, dy, warp })))),
 );
 
 /**
  * Photo shapes searched on every frame. A perceptual hash squashes any crop to
  * 32×32, so a crop with the wrong aspect ratio never lines up with the sealed
  * original: phones usually shoot 4:3, webcams 16:9. Both are tried, giving
- * 2 × 135 = 270 hashes per frame.
+ * 2 × 225 = 450 hashes per frame.
  */
 export const ASPECTS = { landscape: [4 / 3, 16 / 9], portrait: [3 / 4, 9 / 16] } as const;
 

@@ -208,6 +208,21 @@ Trying 270 crops gives an unrelated photo 270 chances to land close. I measured 
 at 16 bits 1% of unrelated pairs matched, at 11 bits none of 1,440 did, while 97% of real re-captured
 frames still matched. Requiring 3 of 6 frames means one missed frame doesn't matter.
 
+**How accurate is it, and can it be 100%?**
+The cryptographic part is effectively certain: AUTHENTIC needs an exact SHA-256 match plus a valid
+ECDSA signature. Image matching can't be 100%, so I measured it (`npm run benchmark`, 230 checks, 22
+kinds of copy): the old pipeline got 61% right, the improved one 98%. More importantly it made **zero
+false links**: no unrelated photo was called EDITED and every EDITED named the correct original. The
+4 misses all fail safe as UNVERIFIED.
+
+**How do you find the original of a cropped or mirrored copy?**
+At sealing, the server also stores fingerprints of the photo's mirror image, rotations and 400 crops
+(off-chain). A cropped copy is shortlisted through those, then an alignment search finds exactly which
+region it came from, using a summed-area table so thousands of candidate rectangles are scored in
+milliseconds. Three gates stop wrong matches: the region must look the same at fine detail (96 px,
+best half of the pixels), cover at least 25% of the original, and the pixel diff must still be ≤ 45%.
+Each limit was set from measurements, below the closest wrong match ever seen.
+
 **How does the red string stay attached when you drag a polaroid?**
 Each pin is an element marked `data-anchor`. On every animation frame the board measures where the
 pins really are (`getBoundingClientRect`, which includes rotation and drag offsets) and rewrites the

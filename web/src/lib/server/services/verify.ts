@@ -4,26 +4,32 @@
 //        found + proof checks pass  → AUTHENTIC
 //        found + checks fail        → UNVERIFIED (SIGNATURE_INVALID), a red flag:
 //                                     the stored proof has been tampered with
-//   2. Perceptual match. Compute pHash → nearest registered pHash within
-//      PHASH_MATCH_THRESHOLD (from the index, then re-confirmed on-chain).
+//   2. Perceptual match. Compute pHash → shortlist registered photos whose own
+//      pHash, or one of their variant pHashes (mirror, rotations, crops; see
+//      src/lib/image/derivative.ts), is close. Re-confirmed on-chain.
 //   3. Confirm it really is a derivative. For each shortlisted candidate, load
-//      the stored original, check that the ORIGINAL is genuinely signed, and
+//      the stored original, check that the ORIGINAL is genuinely signed, undo
+//      any rotation/mirroring, find where a crop came from (alignment), and
 //      diff the pixels:
+//        alignment not trustworthy, or
 //        changed >  NOT_A_DERIVATIVE_PERCENT → not a derivative, skip it
 //        otherwise → EDITED, using the candidate with the LEAST change
+//      Measured with `npm run benchmark`: see the README.
 //   4. Nothing found → UNVERIFIED. This means "no provenance record", NOT
 //      "proven fake". The UI copy must say so.
 import "server-only";
 import type { ChainRecord, VerifyResponse } from "../../api-types";
 import { sha256Hex } from "../../crypto/hash";
-import { computePHash, hammingDistance, PHASH_MATCH_THRESHOLD, similarity } from "../../crypto/phash";
+import { computePHash, hammingDistance, PHASH_MATCH_THRESHOLD } from "../../crypto/phash";
 import { checkCaptureProof } from "../../crypto/proof";
 import { decodeImage } from "../../image/decode-node";
-import { compareImages, NOT_A_DERIVATIVE_PERCENT } from "../../image/diff";
+import { compareDerivative, VARIANT_SHORTLIST, type Geometry } from "../../image/derivative";
+import { NOT_A_DERIVATIVE_PERCENT } from "../../image/diff";
 import { findRegistrationTx, getChain, readRecord } from "../chain";
 import type { Upload } from "../http";
 import { getIndex, syncIndex } from "../image-index";
 import { readFromStorage } from "../storage";
+import { ensureVariants } from "../variants";
 import { loadStoredProof } from "./stored-proof";
 
 /** Below this % of changed pixels, an edited copy counts as "no visible change". */
@@ -62,6 +68,7 @@ export async function verifyImage(upload: Upload): Promise<VerifyResponse> {
 
   // --- 2. Perceptual match -------------------------------------------------------
   await syncIndex();
+  await ensureVariants();
   const index = getIndex();
   const pHash = computePHash(await decodeImage(upload.bytes));
   let rejectedAsNotDerivative = false;
@@ -75,15 +82,18 @@ export async function verifyImage(upload: Upload): Promise<VerifyResponse> {
     original: ChainRecord;
     originalChecks: Awaited<ReturnType<typeof checkCaptureProof>>;
     distance: number;
-    diff: Awaited<ReturnType<typeof compareImages>>;
+    diff: NonNullable<Awaited<ReturnType<typeof compareDerivative>>>;
   } | null = null;
 
-  for (const candidate of index.nearest(pHash, PHASH_MATCH_THRESHOLD, 3)) {
+  for (const candidate of index.shortlistVariants(pHash, VARIANT_SHORTLIST, 4)) {
     // The index is only a cache: re-read the candidate from the chain.
     const original = await readRecord(candidate.sha256);
     if (!original) continue;
-    const distance = hammingDistance(pHash, original.pHash);
-    if (distance > PHASH_MATCH_THRESHOLD) continue;
+    // The plain whole-image comparison is only allowed when the copy's OWN
+    // fingerprint matched the original's (the original pipeline's rule); a
+    // match through a crop/mirror fingerprint must pass the alignment gate.
+    const plainAllowed = hammingDistance(pHash, original.pHash) <= PHASH_MATCH_THRESHOLD;
+    const distance = candidate.distance;
 
     // --- 3. Confirm with the stored original ----------------------------------
     const originalBytes = await readFromStorage(original.storageURI);
@@ -94,7 +104,10 @@ export async function verifyImage(upload: Upload): Promise<VerifyResponse> {
     const originalChecks = await checkCaptureProof(originalBytes, originalProof, original);
     if (!originalChecks.valid) continue;
 
-    const diff = await compareImages(originalBytes, upload.bytes);
+    const diff = await compareDerivative(originalBytes, upload.bytes, candidate.variant.orient, plainAllowed);
+    // null: the alignment showed this is not the copy's original at all (it
+    // only resembled a crop of it), so it says nothing about the copy.
+    if (!diff) continue;
     if (diff.changedPercent > NOT_A_DERIVATIVE_PERCENT) {
       rejectedAsNotDerivative = true;
       continue;
@@ -115,7 +128,7 @@ export async function verifyImage(upload: Upload): Promise<VerifyResponse> {
       originalUrl: `/api/images/${original.sha256}`,
       originalChecks,
       distance,
-      similarity: similarity(pHash, original.pHash),
+      similarity: Math.round((1 - distance / 64) * 1000) / 10,
       diff: {
         gridSize: diff.gridSize,
         grid: diff.grid,
@@ -123,6 +136,7 @@ export async function verifyImage(upload: Upload): Promise<VerifyResponse> {
         changedCells: diff.changedCells,
         globalAdjustment: diff.globalAdjustment,
         alignment: diff.alignment,
+        geometry: publicGeometry(diff.geometry),
       },
       editKind,
       network,
@@ -138,4 +152,10 @@ export async function verifyImage(upload: Upload): Promise<VerifyResponse> {
     nearestDistance: index.nearestDistance(pHash),
     network,
   };
+}
+
+/** The part of the alignment result the UI needs (null for a plain, uncropped copy). */
+function publicGeometry(g: Geometry) {
+  if (!g.cropped && !g.mirrored && g.rotation === 0) return null;
+  return { rect: g.rect, rotation: g.rotation, mirrored: g.mirrored, cropped: g.cropped, keptPercent: g.keptPercent };
 }

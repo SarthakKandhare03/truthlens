@@ -27,6 +27,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { ChainRecord } from "../api-types";
 import { phashWords, wordDistance } from "../crypto/phash";
+import { FULL, shortlist, UPRIGHT, type IndexedVariant, type VariantHash } from "../image/derivative";
 import { readHashAt, readHashPage, readRecord, readTotalRecords } from "./chain";
 import { config } from "./config";
 
@@ -44,6 +45,20 @@ const SCHEMA = `
     tx_hash         TEXT
   );
   CREATE INDEX IF NOT EXISTS images_by_tx ON images(tx_hash);
+
+  -- Extra perceptual hashes of each sealed photo (mirror, rotations, crops),
+  -- recomputed from the stored original, so cropped/flipped copies can be
+  -- found (see src/lib/image/derivative.ts). Off-chain cache like the rest.
+  CREATE TABLE IF NOT EXISTS variants (
+    sha256  TEXT NOT NULL,
+    phash   TEXT NOT NULL,
+    rot     INTEGER NOT NULL,
+    mirror  INTEGER NOT NULL,
+    x REAL NOT NULL, y REAL NOT NULL, w REAL NOT NULL, h REAL NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS variants_by_sha ON variants(sha256);
+  -- Photos whose variants have been computed (or whose original is missing).
+  CREATE TABLE IF NOT EXISTS variants_done (sha256 TEXT PRIMARY KEY);
 `;
 
 type Row = {
@@ -84,6 +99,7 @@ export class ImageIndex {
   /** Insert or refresh a record. A known tx hash is never overwritten with null. */
   upsert(rec: ChainRecord): void {
     this.phashCache = null;
+    this.variantCache = null;
     // Self-healing: each chain_index belongs to exactly one image on the CURRENT
     // chain. A different image in that slot is left over from a chain that was
     // reset (e.g. the local Hardhat node restarted), so the chain wins.
@@ -134,7 +150,57 @@ export class ImageIndex {
 
   clear(): void {
     this.phashCache = null;
-    this.db.exec("DELETE FROM images");
+    this.variantCache = null;
+    this.db.exec("DELETE FROM images; DELETE FROM variants; DELETE FROM variants_done;");
+  }
+
+  // --- Variant fingerprints ---------------------------------------------------
+
+  private variantCache: IndexedVariant[] | null = null;
+
+  /** Sealed photos whose variants haven't been computed yet. */
+  missingVariants(): { sha256: string; storageURI: string }[] {
+    return this.db
+      .prepare("SELECT sha256, storage_uri AS storageURI FROM images WHERE sha256 NOT IN (SELECT sha256 FROM variants_done)")
+      .all() as { sha256: string; storageURI: string }[];
+  }
+
+  /** Stores a photo's variant hashes (an empty list just marks it done, e.g. original missing). */
+  setVariants(sha256: string, variants: VariantHash[]): void {
+    this.variantCache = null;
+    this.db.exec("BEGIN");
+    try {
+      this.db.prepare("DELETE FROM variants WHERE sha256 = ?").run(sha256);
+      const insert = this.db.prepare("INSERT INTO variants (sha256, phash, rot, mirror, x, y, w, h) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+      for (const v of variants) {
+        insert.run(sha256, v.pHash, v.orient.rot, v.orient.mirror ? 1 : 0, v.rect.x, v.rect.y, v.rect.w, v.rect.h);
+      }
+      this.db.prepare("INSERT OR IGNORE INTO variants_done (sha256) VALUES (?)").run(sha256);
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  /**
+   * Shortlist for verification: sealed photos whose own pHash OR any variant
+   * pHash is within `maxDistance`, closest first, with the variant that matched.
+   */
+  shortlistVariants(pHash: string, maxDistance: number, limit: number) {
+    this.variantCache ??= [
+      ...this.phashes().map((r) => ({ sha256: r.sha256, words: r.words, variant: { orient: UPRIGHT, rect: FULL } })),
+      ...(
+        this.db
+          .prepare("SELECT v.* FROM variants v JOIN images i ON i.sha256 = v.sha256") // skips rows of reset chains
+          .all() as { sha256: string; phash: string; rot: 0 | 90 | 180 | 270; mirror: number; x: number; y: number; w: number; h: number }[]
+      ).map((v) => ({
+        sha256: v.sha256,
+        words: phashWords(v.phash),
+        variant: { orient: { rot: v.rot, mirror: v.mirror === 1 }, rect: { x: v.x, y: v.y, w: v.w, h: v.h } },
+      })),
+    ];
+    return shortlist(pHash, this.variantCache, maxDistance, limit);
   }
 
   // Every registered pHash, pre-split into 32-bit words, kept in memory: live
@@ -217,7 +283,7 @@ export class ImageIndex {
 // of `instanceof` on purpose: Next.js bundles API routes and pages separately,
 // so each bundle has its OWN copy of the ImageIndex class, and `instanceof`
 // would make them replace each other's instance on every request.
-const INDEX_API_VERSION = 3;
+const INDEX_API_VERSION = 4;
 const globalForIndex = globalThis as unknown as {
   __truthlensIndex?: { file: string; version: number; index: ImageIndex };
 };

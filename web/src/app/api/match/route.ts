@@ -3,7 +3,7 @@
 // 64-bit perceptual hashes here, never the picture itself: a few hundred
 // bytes per frame, and the photo never leaves the device.
 //
-//   body     { "hashes": ["0x0f3c…", …] }        1–300 hashes of 16 hex digits
+//   body     { "hashes": ["0x0f3c…", …] }        1–500 hashes of 16 hex digits
 //   reply    { "best": { sha256, distance } | null, "record": ChainRecord | null }
 //
 // `record` is filled only when the best distance is within LIVE_MATCH, so a
@@ -16,7 +16,7 @@ import { getIndex, syncIndex } from "@/lib/server/image-index";
 import { LIVE_MATCH } from "@/lib/live-match";
 
 const HASH = /^0x[0-9a-f]{16}$/;
-const MAX_HASHES = 300; // 2 photo shapes × 135 crops = 270 per frame
+const MAX_HASHES = 500; // 2 photo shapes × 225 crops = 450 per frame
 const PER_MINUTE = 600; // ~10 frames a second, far more than the client sends
 const SYNC_EVERY_MS = 1000;
 
